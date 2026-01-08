@@ -1,98 +1,144 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { MovieCard } from "@/components/movieCard";
+import { useMovies } from "@/hooks/useMovies";
+import { SearchMovie } from "@/types/movies";
+import { useWatchlist } from "@/utilities/WatchlistContext";
+import React, { useCallback } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const SUGGESTIONS = [
+  "Marvel",
+  "Batman",
+  "Star Wars",
+  "Harry Potter",
+  "Matrix",
+  "Avengers",
+];
+const IMAGE_HEIGHT = 80;
+const CARD_PADDING_Y = 24;
+const ITEM_HEIGHT = IMAGE_HEIGHT + CARD_PADDING_Y;
+const SEPARATOR_HEIGHT = 12;
 
-export default function HomeScreen() {
+export default function MovieSearchScreen() {
+  const {
+    input,
+    setInput,
+    submitSearch,
+    movies,
+    loading,
+    error,
+    refreshing,
+    refresh,
+    search,
+  } = useMovies("Marvel");
+
+  const { isSaved, toggle } = useWatchlist();
+
+  const renderItem = useCallback(
+    ({ item }: { item: SearchMovie }) => (
+      <MovieCard movie={item} saved={isSaved(item.imdbID)} onToggle={toggle} />
+    ),
+    [isSaved, toggle]
+  );
+
+  const keyExtractor = useCallback((item: SearchMovie) => item.imdbID, []);
+
+  const renderSuggestions = useCallback(
+    () => (
+      <View className="mt-3 flex-row flex-wrap gap-2">
+        {SUGGESTIONS.map((s) => (
+          <Pressable
+            key={s}
+            className="rounded-full bg-white px-4 py-2"
+            onPress={() => search(s)}
+          >
+            <Text className="text-gray-900">{s}</Text>
+          </Pressable>
+        ))}
+      </View>
+    ),
+    [search]
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <View className="flex-1 bg-gray-50 px-4 pt-4">
+      <View className="flex-row gap-2">
+        <TextInput
+          value={input}
+          onChangeText={setInput}
+          placeholder="Search movies…"
+          className="flex-1 rounded-2xl bg-white px-4 py-3"
+          returnKeyType="search"
+          onSubmitEditing={submitSearch}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+        <Pressable
+          className="rounded-2xl bg-black px-4 py-3"
+          onPress={submitSearch}
+        >
+          <Text className="text-white">Search</Text>
+        </Pressable>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {loading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator />
+          <Text className="mt-2 text-gray-600">Loading movies…</Text>
+        </View>
+      ) : error ? (
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-base font-semibold">Couldn’t load movies</Text>
+          <Text className="mt-2 text-center text-gray-600">{error}</Text>
+
+          <Pressable
+            className="mt-4 rounded-2xl bg-black px-4 py-3"
+            onPress={refresh}
+          >
+            <Text className="text-white">Try again</Text>
+          </Pressable>
+        </View>
+      ) : movies.length === 0 ? (
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-xl font-semibold">No results</Text>
+          <Text className="mt-2 text-center text-gray-600">
+            Try one of these:
+          </Text>
+
+          <View className="w-full">{renderSuggestions()}</View>
+
+          <Pressable
+            className="mt-5 rounded-2xl bg-black px-4 py-3"
+            onPress={() => search("Marvel")}
+          >
+            <Text className="text-white">Back to Marvel</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          className="mt-4"
+          data={movies}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          ItemSeparatorComponent={() => <View className="h-3" />}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          refreshing={refreshing}
+          onRefresh={refresh}
+          removeClippedSubviews
+          initialNumToRender={8}
+          windowSize={7}
+          getItemLayout={(_, index) => ({
+            length: ITEM_HEIGHT + SEPARATOR_HEIGHT,
+            offset: (ITEM_HEIGHT + SEPARATOR_HEIGHT) * index,
+            index,
+          })}
+          maxToRenderPerBatch={10}
+        />
+      )}
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
